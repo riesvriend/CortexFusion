@@ -13,10 +13,15 @@ using Stl.OS;
 using Stl.DependencyInjection;
 using Stl.Fusion.Blazor;
 using Stl.Fusion.Extensions;
+using Cortex.Net;
+using Cortex.Net.Api;
+using System.Threading;
+using Templates.Blazor2.UI.Stores;
+using Templates.Blazor2.Abstractions;
 
 namespace Templates.Blazor2.UI
 {
-    public class Program
+    public static class Program
     {
         public const string ClientSideScope = nameof(ClientSideScope);
 
@@ -52,15 +57,37 @@ namespace Templates.Blazor2.UI
                         var clientBaseUri = isFusionClient ? baseUri : apiBaseUri;
                         o.HttpClientActions.Add(client => client.BaseAddress = clientBaseUri);
                     });
-               fusion.AddAuthentication(fusionAuth => {
-                   fusionAuth.AddRestEaseClient().AddBlazor();
-               });
+                fusion.AddAuthentication(fusionAuth => {
+                    fusionAuth.AddRestEaseClient().AddBlazor();
+                });
             });
 
             // This method registers services marked with any of ServiceAttributeBase descendants, including:
             // [Service], [ComputeService], [RestEaseReplicaService], [LiveStateUpdater]
             services.UseAttributeScanner(ClientSideScope).AddServicesFrom(Assembly.GetExecutingAssembly());
             ConfigureSharedServices(services);
+        }
+
+        public static IServiceCollection AddCortexService<TService>(
+            this IServiceCollection services, Func<IServiceProvider, TService> implementationFactory) where TService : class
+        {
+            if (OSInfo.IsWebAssembly) {
+                return services.AddSingleton<TService>(implementationFactory);
+            }
+            else {
+                return services.AddScoped<TService>(implementationFactory);
+            }
+        }
+
+
+        public static IServiceCollection AddCortexService<TService>(this IServiceCollection services) where TService : class
+        {
+            if (OSInfo.IsWebAssembly) {
+                return services.AddSingleton<TService>();
+            }
+            else {
+                return services.AddScoped<TService>();
+            }
         }
 
         public static void ConfigureSharedServices(IServiceCollection services)
@@ -76,6 +103,33 @@ namespace Templates.Blazor2.UI
             services.AddFusion(fusion => {
                 fusion.AddLiveClock();
             });
+
+            // https://jspuij.github.io/Cortex.Net.Docs/pages/sharedstate.html
+            services.AddCortexService<ISharedState>(sp => {
+                // create an instance using the configuration
+                var sharedState = new SharedState(new CortexConfiguration() {
+                    // enforce that state mutation always happens inside an action.
+                    EnforceActions = EnforceAction.Always,
+                    AutoscheduleActions = true,
+                    SynchronizationContext = SynchronizationContext.Current,
+                });
+                // spy event handler should be in the object itself to prevent mem-leak as there is no dispose
+                //sharedState.SpyEvent += SharedState_SpyEvent; 
+                return sharedState;
+            });
+
+            services.AddCortexService<AppStore>(s => {
+                var sharedState = s.GetRequiredService<ISharedState>();
+                var appStore = sharedState.Observable(() => new AppStore { });
+                appStore.OnCreate();
+                return appStore;
+            });
+            services.AddCortexService<TodoPageStore>(s => {
+                var todoService = s.GetRequiredService<ITodoService>();
+                var sharedState = s.GetRequiredService<ISharedState>();
+                return sharedState.Observable(() => new TodoPageStore(todoService, sharedState));
+            });
+
 
             // This method registers services marked with any of ServiceAttributeBase descendants, including:
             // [Service], [ComputeService], [RestEaseReplicaService], [LiveStateUpdater]

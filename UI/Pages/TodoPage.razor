@@ -1,22 +1,22 @@
 @page "/todo"
 @using System.Threading
 @using Templates.Blazor2.Abstractions
-@inherits LiveComponentBase<TodoUIModel>
-@inject ITodoUIService TodoUI
+@inherits LiveComponentBase<Todo[]>
+@inject ITodoService Todos
 @inject Session Session
 @inject CommandRunner CommandRunner
 @inject AuthStateProvider AuthStateProvider
 
 @{
     var error = State.Error;
-    var model = State.UnsafeValue ?? new();
+    var todos = State.UnsafeValue ?? Array.Empty<Todo>(); // UnsafeValue returns default if there is an Error
 }
 
 <h1>Todo List</h1>
 
 <StatefulComponentState Component="@this" />
 <Text Margin="Margin.Is1.OnY">
-    Updated: <b><MomentsAgoBadge Value="model.LastStateUpdateTime" /></b>
+    Updated: <b><MomentsAgoBadge Value="LastStateUpdateTime" /></b>
 </Text>
 
 <AuthorizeView>
@@ -32,9 +32,8 @@
 
         <Row>
             <Column ColumnSize="ColumnSize.Is6.OnDesktop.Is12.OnTablet">
-                @foreach (var todoModel in model.Items)
+                @foreach (var todo in todos)
                 {
-                    var todo = todoModel.Todo;
                     <Addons Margin="Margin.Is3.OnY">
                         <Addon AddonType="AddonType.Start">
                             <AddonLabel>
@@ -52,7 +51,7 @@
                     </Addons>
                 }
 
-                @if (model.HasMore)
+                @if (HasMore)
                 {
                     <Button Clicked="_ => LoadMore()" Color="Color.Primary" Margin="Margin.Is3.OnY">
                         Load more <Blazorise.Icon Name="FontAwesomeIcons.AngleDoubleDown" />
@@ -80,12 +79,14 @@
 
 
 @code {
+    private int PageSize { get; set; } = 5;
+    private bool HasMore { get; set; }
+    private string NewTodoTitle { get; set; } = "";
+    private DateTime LastStateUpdateTime { get; set; } = DateTime.UtcNow;
     // AuthState property below seemingly does nothing, right?
     // But try to comment out this line & sign-in + sign-out. See the error badge stays there for a while now?
     // Check your explanation on our Discord: https://discord.gg/EKEwv6d
     [CascadingParameter] protected Task<AuthState> AuthState { get; set; } = null!;
-
-    private string NewTodoTitle { get; set; } = "";
 
     protected override void OnInitialized()
     {
@@ -94,21 +95,20 @@
         base.OnInitialized();
     }
 
-    public override void Dispose()
+    protected override async Task<Todo[]> ComputeState(CancellationToken cancellationToken)
     {
-        TodoUI.Clear(Session);
-        base.Dispose();
+        var items = await Todos.List(Session, PageSize + 1, cancellationToken);
+        HasMore = items.Length > PageSize;
+        if (HasMore)
+            items = items[0..PageSize];
+        LastStateUpdateTime = DateTime.UtcNow;
+        return items;
     }
 
-    protected override async Task<TodoUIModel> ComputeState(CancellationToken cancellationToken)
+    private void LoadMore()
     {
-        var model = await TodoUI.Get(Session, cancellationToken);
-        return model;
-    }
-
-    private Task LoadMore()
-    {
-        return TodoUI.LoadMore(Session);
+        PageSize *= 2;
+        InvalidateState();
     }
 
     private Task InvertDone(Todo todo)
