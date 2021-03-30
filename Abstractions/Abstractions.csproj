@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+        <RootNamespace>Templates.Blazor2.Abstractions</RootNamespace>
+        <AssemblyName>Templates.Blazor2.Abstractions</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+        <PackageReference Include="Stl.Fusion.Client" />
+    </ItemGroup>
+
+</Project>

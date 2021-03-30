@@ -1,0 +1,62 @@
+@inherits LiveComponentBase<Todo, ToDoUiItemModel>
+@inject Session Session
+@inject CommandRunner CommandRunner
+@inject ITodoService Todos
+@using Templates.Blazor2.Abstractions
+@using System.Threading
+
+@{
+	// TODO: Make a service for computing  the Local ToDoUiItemModel
+	// and plug it into this.Locals inside the ComputeState method
+
+	var error = State.Error;
+	var todo = State.UnsafeValue ?? new Todo { }; // UnsafeValue returns default if there is an Error
+	var model = this.Locals.Snapshot;
+}
+
+<Addons Margin="Margin.Is3.OnY">
+	<Addon AddonType="AddonType.Start">
+		<AddonLabel>
+			<Blazorise.Icon Name="@(todo.IsDone ? FontAwesomeIcons.CheckSquare : FontAwesomeIcons.Square)"
+							@onclick="_ => InvertDone(todo)" />
+		</AddonLabel>
+	</Addon>
+	<TextEdit TextChanged="text => UpdateTitle(todo, text)" ChangeTextOnKeyPress="false"
+			  Text="@todo.Title" />
+	<Addon AddonType="AddonType.End">
+		<Button Clicked="_ => Remove(todo)" Color="Color.Warning">
+			<Blazorise.Icon Name="FontAwesomeIcons.Minus" />
+		</Button>
+	</Addon>
+</Addons>
+
+@code {
+	[Parameter]
+	public string ToDoItemId { get; set; } = null!;
+
+	protected override async Task<Todo> ComputeState(CancellationToken cancellationToken)
+	{
+		var todo = await Todos.TryGet(Session, ToDoItemId, cancellationToken);
+		if (todo == null)
+			throw new ApplicationException($"To do item {ToDoItemId} not found");
+		return todo;
+	}
+
+	private Task InvertDone(Todo todo)
+	{
+		todo = todo with { IsDone = !todo.IsDone };
+		return CommandRunner.Call(new AddOrUpdateTodoCommand(Session, todo));
+	}
+
+	private Task UpdateTitle(Todo todo, string title)
+	{
+		title = title.Trim();
+		if (todo.Title == title)
+			return Task.CompletedTask;
+		todo = todo with { Title = title };
+		return CommandRunner.Call(new AddOrUpdateTodoCommand(Session, todo));
+	}
+
+	private Task Remove(Todo todo)
+		=> CommandRunner.Call(new RemoveTodoCommand(Session, todo.Id));
+}
