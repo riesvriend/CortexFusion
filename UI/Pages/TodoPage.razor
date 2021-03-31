@@ -11,6 +11,7 @@
 
 @attribute [Observer]
 @inject AppStore appStore
+@inject TodoPageStore todoPageStore
 
 @{
     var error = State.Error;
@@ -24,6 +25,8 @@
     Updated: <b><MomentsAgoBadge Value="LastStateUpdateTime" /></b>
 </Text>
 <p>Created: @appStore.CurrentTime</p>
+<p>Value: @todoPageStore.Value</p>
+
 
 <AuthorizeView>
     <NotAuthorized>
@@ -137,6 +140,7 @@
 
     private Task Create()
     {
+        todoPageStore.SetValue(NewTodoTitle);
         var todo = new Todo("", NewTodoTitle);
         NewTodoTitle = "";
         StateHasChanged();

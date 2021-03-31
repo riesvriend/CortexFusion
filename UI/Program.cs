@@ -127,9 +127,10 @@ namespace Templates.Blazor2.UI
             services.AddCortexService<TodoPageStore>(s => {
                 var todoService = s.GetRequiredService<ITodoService>();
                 var sharedState = s.GetRequiredService<ISharedState>();
-                return sharedState.Observable(() => new TodoPageStore(todoService, sharedState));
+                var session = s.GetRequiredService<Stl.Fusion.Authentication.Session>();
+                var stateFactory = s.GetRequiredService<IStateFactory>();
+                return sharedState.Observable(() => new TodoPageStore(sharedState, stateFactory, session, todoService));
             });
-
 
             // This method registers services marked with any of ServiceAttributeBase descendants, including:
             // [Service], [ComputeService], [RestEaseReplicaService], [LiveStateUpdater]
