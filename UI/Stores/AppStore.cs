@@ -1,4 +1,5 @@
 using System;
+using System.Timers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,12 +10,24 @@ namespace Templates.Blazor2.UI.Stores
     [Observable]
     public class AppStore
     {
-        public string? CreatedAt { get; set; }
+        private Timer _timer = null!;
+
+        public string? CurrentTime { get; set; }
+
+        [Action]
+        public void OnTick(object source, ElapsedEventArgs e)
+        {
+            CurrentTime = DateTime.UtcNow.ToString();
+        }
 
         [Action]
         public void OnCreate()
         {
-            CreatedAt = DateTime.UtcNow.ToString();
+            CurrentTime = DateTime.UtcNow.ToString();
+            _timer = new Timer(interval: 1000);
+            _timer.Elapsed += OnTick; // TODO: Check if there is a dispose
+            _timer.AutoReset = true;
+            _timer.Enabled = true;
         }
     }
 }

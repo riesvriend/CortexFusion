@@ -1,30 +1,21 @@
-@using Cortex.Net.Api
-@using Cortex.Net.Blazor
 @using Stl.Text
-@using Templates.Blazor2.UI.Stores
 
-@attribute [Observer]
-@inject AppStore appStore
+@* Note: Cortex.Net @attribute [Observer] does not work in the toplevel App.razor
+   Therefore, all potentially reactive elements are best extracted into their own component, AppBody
+*@
 
 <CascadingAuthState SessionId="@SessionId">
     <ThemeProvider Theme="@Theme">
-        <p>App Created at: @appStore?.CreatedAt</p>    
-        <Router AppAssembly="@typeof(Program).Assembly">
-            <Found Context="routeData">
-                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-            </Found>
-            <NotFound>
-                <LayoutView Layout="@typeof(MainLayout)">
-                    <p>Sorry, there's nothing at this address.</p>
-                </LayoutView>
-            </NotFound>
-        </Router>
+        <AppBody />
     </ThemeProvider>
 </CascadingAuthState>
 
 @code {
+    // https://blazorise.com/docs/theming/
     private Theme Theme { get; } = new() { IsGradient = true, IsRounded = false };
 
     [Parameter]
     public string SessionId { get; set; } = Symbol.Empty;
 }
+
+

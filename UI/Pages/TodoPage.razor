@@ -1,11 +1,16 @@
 @page "/todo"
 @using System.Threading
 @using Templates.Blazor2.Abstractions
+@using Cortex.Net.Blazor
+@using Templates.Blazor2.UI.Stores
 @inherits LiveComponentBase<Todo[]>
 @inject ITodoService Todos
 @inject Session Session
 @inject CommandRunner CommandRunner
 @inject AuthStateProvider AuthStateProvider
+
+@attribute [Observer]
+@inject AppStore appStore
 
 @{
     var error = State.Error;
@@ -18,6 +23,7 @@
 <Text Margin="Margin.Is1.OnY">
     Updated: <b><MomentsAgoBadge Value="LastStateUpdateTime" /></b>
 </Text>
+<p>Created: @appStore.CurrentTime</p>
 
 <AuthorizeView>
     <NotAuthorized>
