@@ -13,26 +13,56 @@ using Stl.Fusion.Authentication;
 
 namespace Templates.Blazor2.UI.Stores
 {
+    public enum FusionStateStatusEnum { Loading, Updating, UpdatePending, InSync };
+
+    /// <summary>
+    /// TODO: Use composition instead of inheritance: allow a Cortrex store to keep one or more
+    /// FusionLiveStates in a wrapper class, no need to inherit just forward the relevant events
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     [Observable]
     public abstract class BaseStore<T> : IDisposable
     {
-        protected IStateFactory StateFactory;
-        protected ISharedState SharedState;
-        protected Session Session;
+        protected IStateFactory? StateFactory;
+        protected ISharedState? SharedState;
+        protected Session? Session;
+        protected CommandRunner? CommandRunner;
         private bool _disposedValue;
 
-        protected Action<IState, StateEventKind> StateChanged { get; set; }
-        protected IState<T>? LiveState { get; set; }
+        protected Action<IState, StateEventKind>? StateChanged { get; set; }
+        protected ILiveState<T>? LiveState { get; set; }
 
-        public BaseStore(ISharedState sharedState, IStateFactory stateFactory, Session session)
+        public FusionStateStatusEnum FusionStateStatus { get; set; }
+
+        public void Init(ISharedState sharedState, IStateFactory stateFactory, Session session, CommandRunner commandRunner)
         {
             SharedState = sharedState;
             StateFactory = stateFactory;
             Session = session;
+            CommandRunner = commandRunner;
             StateChanged = (state, eventKind) => {
-                OnLiveStateChanged(state, eventKind);
+                RefreshFusionStateStatus();
+                if (eventKind == StateEventKind.Updated)
+                    OnLiveStateChanged(state, eventKind);
             };
             EnsureCreate();
+        }
+
+        protected virtual void OnLiveStateChanged(IState state, StateEventKind stateEventKind)
+        {
+        }
+
+        [Action]
+        public void RefreshFusionStateStatus()
+        {
+            if (LiveState == null! || LiveState.Snapshot.UpdateCount == 0)
+                FusionStateStatus = FusionStateStatusEnum.Loading;
+            else if (LiveState.Snapshot.IsUpdating)
+                FusionStateStatus = FusionStateStatusEnum.Updating;
+            else if (LiveState.Snapshot.Computed.IsInvalidated())
+                FusionStateStatus = FusionStateStatusEnum.UpdatePending;
+            else
+                FusionStateStatus = FusionStateStatusEnum.InSync;
         }
 
         public void EnsureCreate()
@@ -41,11 +71,7 @@ namespace Templates.Blazor2.UI.Stores
                 return;
 
             LiveState = CreateState();
-            ((IState)LiveState).AddEventHandler(StateEventKind.Updated, StateChanged);
-        }
-
-        protected virtual void OnLiveStateChanged(IState state, StateEventKind stateEventKind)
-        {
+            ((IState)LiveState).AddEventHandler(StateEventKind.All, StateChanged);
         }
 
         protected LiveComponentOptions Options { get; set; } =
@@ -94,9 +120,9 @@ namespace Templates.Blazor2.UI.Stores
         {
             if (!_disposedValue) {
                 if (disposing) {
-                    ((IState?)LiveState)?.RemoveEventHandler(StateEventKind.Updated, StateChanged);
+                    ((IState?)LiveState)?.RemoveEventHandler(StateEventKind.All, StateChanged);
                 }
-                
+
                 _disposedValue = true;
             }
         }
@@ -106,6 +132,21 @@ namespace Templates.Blazor2.UI.Stores
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Typically you need to call this method after UI actions to ensure
+        /// the update from server is requested instantly.
+        /// </summary>
+        /// <param name="cancelUpdateDelay">Cancels update delay, i.e. requests instant update.</param>
+        /// <param name="cancellationDelay">The delay between this call and update delay cancellation.
+        /// The default (null) means it's governed by <see cref="IUpdateDelayer{T}"/>, which does this
+        /// in 50ms by default.</param>
+        protected void Requery(bool cancelUpdateDelay = true, TimeSpan? cancellationDelay = null)
+        {
+            LiveState?.Invalidate();
+            if (cancelUpdateDelay)
+                LiveState?.UpdateDelayer.CancelDelays(cancellationDelay);
         }
     }
 }

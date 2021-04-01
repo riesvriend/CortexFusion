@@ -17,7 +17,7 @@ namespace Templates.Blazor2.UI.Stores
         [Action]
         public void OnTick(object source, ElapsedEventArgs e)
         {
-            CurrentTime = DateTime.UtcNow.ToString();
+            //CurrentTime = DateTime.UtcNow.ToString();
         }
 
         [Action]

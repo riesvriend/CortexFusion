@@ -129,7 +129,12 @@ namespace Templates.Blazor2.UI
                 var sharedState = s.GetRequiredService<ISharedState>();
                 var session = s.GetRequiredService<Stl.Fusion.Authentication.Session>();
                 var stateFactory = s.GetRequiredService<IStateFactory>();
-                return sharedState.Observable(() => new TodoPageStore(sharedState, stateFactory, session, todoService));
+                var commandRunner = s.GetRequiredService<CommandRunner>();
+                return sharedState.Observable(() => {
+                    var s = new TodoPageStore();
+                    s.Init(sharedState, stateFactory, session, todoService, commandRunner);
+                    return s;
+                });
             });
 
             // This method registers services marked with any of ServiceAttributeBase descendants, including:

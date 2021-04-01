@@ -3,68 +3,60 @@
 @using Templates.Blazor2.Abstractions
 @using Cortex.Net.Blazor
 @using Templates.Blazor2.UI.Stores
-@inherits LiveComponentBase<Todo[]>
 @inject ITodoService Todos
 @inject Session Session
-@inject CommandRunner CommandRunner
 @inject AuthStateProvider AuthStateProvider
 
 @attribute [Observer]
 @inject AppStore appStore
 @inject TodoPageStore todoPageStore
 
-@{
-    var error = State.Error;
-    var todos = State.UnsafeValue ?? Array.Empty<Todo>(); // UnsafeValue returns default if there is an Error
-}
-
 <h1>Todo List</h1>
 
-<StatefulComponentState Component="@this" />
+<FusionStateStatusBadge FusionStateStatus="@todoPageStore.FusionStateStatus" />
+
 <Text Margin="Margin.Is1.OnY">
-    Updated: <b><MomentsAgoBadge Value="LastStateUpdateTime" /></b>
+    Updated: <b><MomentsAgoBadge Value="@todoPageStore.LastStateUpdateTimeUtc" /></b>
 </Text>
 <p>Created: @appStore.CurrentTime</p>
-<p>Value: @todoPageStore.Value</p>
-
 
 <AuthorizeView>
     <NotAuthorized>
         <SignInDropdown Why="to use this page" />
     </NotAuthorized>
     <Authorized>
-        <!--
-        This comment is here solely to reset the indent in VS / Rider -->
-
-        <WhenException Exception="error" />
-        <WhenCommandError Exception="CommandRunner.Error" />
-
+        <WhenException2 Exception="@todoPageStore.FusionQueryException" />
+        <WhenException2 Exception="@todoPageStore.FusionCommandException" Title="Update failed!" />
         <Row>
             <Column ColumnSize="ColumnSize.Is6.OnDesktop.Is12.OnTablet">
-                @foreach (var todo in todos)
-                {
-                    <Addons Margin="Margin.Is3.OnY">
-                        <Addon AddonType="AddonType.Start">
-                            <AddonLabel>
-                                <Blazorise.Icon Name="@(todo.IsDone ? FontAwesomeIcons.CheckSquare : FontAwesomeIcons.Square)"
-                                                @onclick="_ => InvertDone(todo)" />
-                            </AddonLabel>
-                        </Addon>
-                        <TextEdit TextChanged="text => UpdateTitle(todo, text)" ChangeTextOnKeyPress="false"
-                                  Text="@todo.Title" />
-                        <Addon AddonType="AddonType.End">
-                            <Button Clicked="_ => Remove(todo)" Color="Color.Warning">
-                                <Blazorise.Icon Name="FontAwesomeIcons.Minus" />
-                            </Button>
-                        </Addon>
-                    </Addons>
-                }
+                @{
+                    var todos = todoPageStore.GetTodoPageResponse?.Todos;
+                    if (todos != null)
+                        foreach (var todo in todos)
+                        {
+                            <Addons Margin="Margin.Is3.OnY">
+                                <Addon AddonType="AddonType.Start">
+                                    <AddonLabel>
+                                        <Blazorise.Icon Name="@(todo.IsDone ? FontAwesomeIcons.CheckSquare : FontAwesomeIcons.Square)"
+                                                        @onclick="_ => InvertDone(todo)" />
+                                    </AddonLabel>
+                                </Addon>
+                                <TextEdit TextChanged="text => UpdateTitle(todo, text)" ChangeTextOnKeyPress="false"
+                                          Text="@todo.Title" />
+                                <Addon AddonType="AddonType.End">
+                                    <Button Clicked="_ => Remove(todo)" Color="Color.Warning">
+                                        <Blazorise.Icon Name="FontAwesomeIcons.Minus" />
+                                    </Button>
+                                </Addon>
+                            </Addons>
+                        }
 
-                @if (HasMore)
-                {
-                    <Button Clicked="_ => LoadMore()" Color="Color.Primary" Margin="Margin.Is3.OnY">
-                        Load more <Blazorise.Icon Name="FontAwesomeIcons.AngleDoubleDown" />
-                    </Button>
+                    if (todoPageStore.HasMore)
+                    {
+                        <Button Clicked="_ => LoadMore()" Color="Color.Primary" Margin="Margin.Is3.OnY">
+                            Load more <Blazorise.Icon Name="FontAwesomeIcons.AngleDoubleDown" />
+                        </Button>
+                    }
                 }
 
                 <Form @onsubmit="_ => Create()" Margin="Margin.Is3.OnY">
@@ -77,73 +69,41 @@
                         <input @bind="NewTodoTitle" @bind:event="onchange" class="form-control" />
                     </Addons>
                 </Form>
-
             </Column>
         </Row>
-
-        <!--
-         -->
     </Authorized>
 </AuthorizeView>
 
 
 @code {
-    private int PageSize { get; set; } = 5;
-    private bool HasMore { get; set; }
     private string NewTodoTitle { get; set; } = "";
-    private DateTime LastStateUpdateTime { get; set; } = DateTime.UtcNow;
     // AuthState property below seemingly does nothing, right?
     // But try to comment out this line & sign-in + sign-out. See the error badge stays there for a while now?
     // Check your explanation on our Discord: https://discord.gg/EKEwv6d
     [CascadingParameter] protected Task<AuthState> AuthState { get; set; } = null!;
 
-    protected override void OnInitialized()
-    {
-        CommandRunner.Component = this;
-        StateHasChangedTriggers = StateEventKind.All;
-        base.OnInitialized();
-    }
-
-    protected override async Task<Todo[]> ComputeState(CancellationToken cancellationToken)
-    {
-        var items = await Todos.List(Session, PageSize + 1, cancellationToken);
-        HasMore = items.Length > PageSize;
-        if (HasMore)
-            items = items[0..PageSize];
-        LastStateUpdateTime = DateTime.UtcNow;
-        return items;
-    }
-
     private void LoadMore()
     {
-        PageSize *= 2;
-        InvalidateState();
+        todoPageStore.LoadMore();
     }
 
     private Task InvertDone(Todo todo)
     {
-        todo = todo with { IsDone = !todo.IsDone };
-        return CommandRunner.Call(new AddOrUpdateTodoCommand(Session, todo));
+        return todoPageStore.ToggleDone(todo);
     }
 
     private Task UpdateTitle(Todo todo, string title)
     {
-        title = title.Trim();
-        if (todo.Title == title)
-            return Task.CompletedTask;
-        todo = todo with { Title = title };
-        return CommandRunner.Call(new AddOrUpdateTodoCommand(Session, todo));
+        return todoPageStore.UpdateTitle(todo, title);
     }
 
     private Task Remove(Todo todo)
-        => CommandRunner.Call(new RemoveTodoCommand(Session, todo.Id));
+    {
+        return todoPageStore.Remove(todo);
+    }
 
     private Task Create()
     {
-        todoPageStore.SetValue(NewTodoTitle);
-        var todo = new Todo("", NewTodoTitle);
-        NewTodoTitle = "";
-        StateHasChanged();
-        return CommandRunner.Call(new AddOrUpdateTodoCommand(Session, todo));
+        return todoPageStore.CreateTodo(NewTodoTitle);
     }
 }

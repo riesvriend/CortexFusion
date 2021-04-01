@@ -9,7 +9,7 @@
         <EntityFrameworkCoreVersion>5.0.4</EntityFrameworkCoreVersion>
         <AspNetCoreVersion>5.0.4</AspNetCoreVersion>
         <AspNetCoreVersion3>3.*</AspNetCoreVersion3>
-        <BlazorVersion>5.0.3</BlazorVersion>
+        <BlazorVersion>5.0.4</BlazorVersion>
         <BlazoriseVersion>0.9.*</BlazoriseVersion>
         <SystemNetHttpJsonVersion>5.0.3</SystemNetHttpJsonVersion>
         <StlFusionVersion>0.*</StlFusionVersion>
@@ -17,7 +17,9 @@
     </PropertyGroup>
 
     <ItemGroup Label="Nupkg Versions">
-        <PackageReference Update="AspNet.Security.OAuth.GitHub" Version="5.0.2" />
+        <PackageReference Update="Cortex.Net" Version="$(CortexNetVersion)" />
+        <PackageReference Update="Cortex.Net.Blazor" Version="$(CortexNetVersion)" />
+        <PackageReference Update="AspNet.Security.OAuth.GitHub" Version="5.0.3" />
         <PackageReference Update="Blazorise" Version="$(BlazoriseVersion)" />
         <PackageReference Update="Blazorise.Bootstrap" Version="$(BlazoriseVersion)" />
         <PackageReference Update="Blazorise.DataGrid" Version="$(BlazoriseVersion)" />
@@ -26,8 +28,6 @@
         <PackageReference Update="Bullseye" Version="3.7.*" />
         <PackageReference Update="Castle.Core" Version="4.4.*" />
         <PackageReference Update="CliWrap" Version="3.3.*" />
-        <PackageReference Update="Cortex.Net" Version="$(CortexNetVersion)" />
-        <PackageReference Update="Cortex.Net.Blazor" Version="$(CortexNetVersion)" />
         <PackageReference Update="DataAnnotationsValidatorNetStandard" Version="1.0.*" />
         <PackageReference Update="Enums.NET" Version="4.0.*" />
         <PackageReference Update="FluentAssertions" Version="5.10.*" />
