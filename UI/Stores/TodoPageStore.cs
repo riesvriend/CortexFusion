@@ -27,15 +27,40 @@ namespace Templates.Blazor2.UI.Stores
     }
 
     [Observable]
-    public class TodoPageStore : BaseStore<GetTodoPageResponse>
+    public class TodoPageStore
     {
         protected ITodoService TodoService = default!;
+        protected LiveStateStore<GetTodoPageResponse> F;
 
         public string? GetTodoPageResponseAsJson { get; set; }
         public ExceptionStore? FusionQueryException { get; set; }
         public ExceptionStore? FusionCommandException { get; set; }
+        public GetTodoPageRequest GetTodoPageRequest { get; set; }
+        public FusionStateStatusEnum FusionStateStatus { get; set; }
 
-        public GetTodoPageRequest? GetTodoPageRequest;
+        public TodoPageStore(ISharedState sharedState,
+            IStateFactory stateFactory,
+            Session session,
+            ITodoService todoService,
+            ICommander commander)
+        {
+            if (todoService == null)
+                throw new ArgumentNullException(nameof(todoService));
+            TodoService = todoService;
+            SetGetTodoPageRequest(new GetTodoPageRequest { PageRef = new PageRef<string>(), PageSize = 5 });
+
+            F = new LiveStateStore<GetTodoPageResponse>(sharedState, stateFactory, session, commander, ComputeState);
+            F.OnLiveStateChanged += F_OnLiveStateChanged;
+        }
+
+        private void F_OnLiveStateChanged(object? sender, FusionStateStatusEnum status)
+        {
+            Debug.WriteLine($"OnLiveStateChanged {status}. Todos: {F.LiveState?.UnsafeValue?.Todos.Length} ");
+            if (status == FusionStateStatusEnum.InSync)
+                SetGetTodoPageResponse(F.LiveState?.UnsafeValue);
+            UpdateQueryException();
+            SetFusionStatus(status);
+        }
 
         [Computed]
         public GetTodoPageResponse? GetTodoPageResponse {
@@ -66,57 +91,31 @@ namespace Templates.Blazor2.UI.Stores
                 GetTodoPageResponseAsJson = JsonConvert.SerializeObject(getTodoPageResponse);
         }
 
-        public TodoPageStore()
+        protected async Task<GetTodoPageResponse> ComputeState(CancellationToken cancellationToken)
         {
-           
-        }
-        public void Init(
-            ISharedState sharedState,
-            IStateFactory stateFactory,
-            Session session,
-            ITodoService todoService,
-            CommandRunner commandRunner)
-        {
-            if (todoService == null)
-                throw new ArgumentNullException(nameof(todoService));
-            TodoService = todoService;
-            GetTodoPageRequest = new GetTodoPageRequest { PageRef = new PageRef<string>(), PageSize = 5 };
-
-            base.Init(sharedState, stateFactory, session, commandRunner);
-        }
-
-        protected override async Task<GetTodoPageResponse> ComputeState(CancellationToken cancellationToken)
-        {
-            var response = await TodoService.GetTodoPage(Session, GetTodoPageRequest, cancellationToken);
+            var response = await TodoService.GetTodoPage(F.Session, GetTodoPageRequest, cancellationToken);
             return response;
-        }
-
-        protected override void OnLiveStateChanged(IState state, StateEventKind stateEventKind)
-        {
-            Debug.WriteLine($"OnLiveStateChanged {state}. Todos: {LiveState?.UnsafeValue?.Todos.Length} ");
-            SetGetTodoPageResponse(LiveState?.UnsafeValue);
-            UpdateQueryException();
         }
 
         [Action]
         public void LoadMore()
         {
             GetTodoPageRequest.PageSize *= 2;
-            Requery();  // See if we can make an autorunner for this
+            F.Requery();  // See if we can make an autorunner for this
         }
 
         [Action]
         public async Task CreateTodo(string newTodoTitle)
         {
             var todo = new Todo(Id: "", newTodoTitle, IsDone: false);
-            await Call(new AddOrUpdateTodoCommand(Session, todo));
+            await Call(new AddOrUpdateTodoCommand(F.Session, todo));
         }
 
         [Action]
         public async Task ToggleDone(Todo todo)
         {
             todo = todo with { IsDone = !todo.IsDone };
-            await Call(new AddOrUpdateTodoCommand(Session, todo));
+            await Call(new AddOrUpdateTodoCommand(F.Session, todo));
         }
 
         [Action]
@@ -126,41 +125,60 @@ namespace Templates.Blazor2.UI.Stores
             if (todo.Title == title)
                 return;
             todo = todo with { Title = title };
-            await Call(new AddOrUpdateTodoCommand(Session, todo));
+            await Call(new AddOrUpdateTodoCommand(F.Session, todo));
         }
 
         [Action]
         public async Task Remove(Todo todo)
         {
-            await Call(new RemoveTodoCommand(Session, todo.Id));
+            await Call(new RemoveTodoCommand(F.Session, todo.Id));
         }
 
         protected async Task Call(ICommand command)
         {
-            await CommandRunner.Call<Task>(command, cancellationToken: default);
-            UpdateCommandException();
+            UpdateCommandException(null);
+            try {
+                await F.Commander.Call(command, cancellationToken: default);
+                //TryInvalidate();
+            }
+            catch (Exception e) {
+                UpdateCommandException(e);
+            }
         }
 
-        protected void UpdateCommandException()
+        protected void UpdateCommandException(Exception? e)
         {
-            if (FusionCommandException == null && CommandRunner.Error == null)
+            if (FusionCommandException == null && e == null)
                 return;
 
-            if (CommandRunner.Error != null)
-                FusionCommandException = new ExceptionStore(CommandRunner.Error);
+            if (e != null)
+                FusionCommandException = new ExceptionStore(e);
             else
                 FusionCommandException = null;
         }
 
-        protected void UpdateQueryException()
+        [Action]
+        public void UpdateQueryException()
         {
-            if (FusionQueryException == null && LiveState?.Error == null)
+            if (FusionQueryException == null && F.LiveState?.Error == null)
                 return;
 
-            if (LiveState?.Error != null)
-                FusionQueryException = new ExceptionStore(LiveState.Error);
+            if (F.LiveState?.Error != null)
+                FusionQueryException = new ExceptionStore(F.LiveState.Error);
             else
                 FusionQueryException = null;
+        }
+
+        [Action]
+        public void SetFusionStatus(FusionStateStatusEnum status)
+        {
+            FusionStateStatus = status;
+        }
+
+        [Action]
+        public void SetGetTodoPageRequest(GetTodoPageRequest request)
+        {
+            GetTodoPageRequest = request;
         }
     }
 }

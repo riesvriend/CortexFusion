@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Stl.Fusion;
 using Stl.Fusion.Client;
 using Stl.OS;
+using Stl.CommandR;
 using Stl.DependencyInjection;
 using Stl.Fusion.Blazor;
 using Stl.Fusion.Extensions;
@@ -129,10 +130,9 @@ namespace Templates.Blazor2.UI
                 var sharedState = s.GetRequiredService<ISharedState>();
                 var session = s.GetRequiredService<Stl.Fusion.Authentication.Session>();
                 var stateFactory = s.GetRequiredService<IStateFactory>();
-                var commandRunner = s.GetRequiredService<CommandRunner>();
+                var commander = s.GetRequiredService<ICommander>();
                 return sharedState.Observable(() => {
-                    var s = new TodoPageStore();
-                    s.Init(sharedState, stateFactory, session, todoService, commandRunner);
+                    var s = new TodoPageStore(sharedState, stateFactory, session, todoService, commander);
                     return s;
                 });
             });
