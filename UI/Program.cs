@@ -67,6 +67,7 @@ namespace Templates.Blazor2.UI
             // [Service], [ComputeService], [RestEaseReplicaService], [LiveStateUpdater]
             services.UseAttributeScanner(ClientSideScope).AddServicesFrom(Assembly.GetExecutingAssembly());
             ConfigureSharedServices(services);
+            ConfigureCortexServices(services);
         }
 
         public static IServiceCollection AddCortexService<TService>(
@@ -119,6 +120,13 @@ namespace Templates.Blazor2.UI
                 return sharedState;
             });
 
+            // This method registers services marked with any of ServiceAttributeBase descendants, including:
+            // [Service], [ComputeService], [RestEaseReplicaService], [LiveStateUpdater]
+            services.UseAttributeScanner().AddServicesFrom(Assembly.GetExecutingAssembly());
+        }
+
+        public static void ConfigureCortexServices(IServiceCollection services)
+        {
             services.AddCortexService<AppStore>(s => {
                 var sharedState = s.GetRequiredService<ISharedState>();
                 var appStore = sharedState.Observable(() => new AppStore { });
@@ -128,18 +136,14 @@ namespace Templates.Blazor2.UI
             services.AddCortexService<TodoPageStore>(s => {
                 var todoService = s.GetRequiredService<ITodoService>();
                 var sharedState = s.GetRequiredService<ISharedState>();
-                var session = s.GetRequiredService<Stl.Fusion.Authentication.Session>();
                 var stateFactory = s.GetRequiredService<IStateFactory>();
                 var commander = s.GetRequiredService<ICommander>();
+                var session = s.GetRequiredService<Stl.Fusion.Authentication.Session>();
                 return sharedState.Observable(() => {
                     var s = new TodoPageStore(sharedState, stateFactory, session, todoService, commander);
                     return s;
                 });
             });
-
-            // This method registers services marked with any of ServiceAttributeBase descendants, including:
-            // [Service], [ComputeService], [RestEaseReplicaService], [LiveStateUpdater]
-            services.UseAttributeScanner().AddServicesFrom(Assembly.GetExecutingAssembly());
         }
     }
 }

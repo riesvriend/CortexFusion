@@ -155,6 +155,8 @@ namespace Templates.Blazor2.Host
                     Title = "Templates.Blazor2 API", Version = "v1"
                 });
             });
+
+            UI.Program.ConfigureCortexServices(services);
         }
 
         public void Configure(IApplicationBuilder app, ILogger<Startup> log)
